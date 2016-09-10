@@ -22,11 +22,28 @@ func (master *Master) schedule(task *Task, proc string, filePathChan chan string
 
 	log.Printf("Scheduling %v operations\n", proc)
 
+	// cria o canal de retrial de operacoes
+	master.operationsToBeRetriedChan = make(chan *Operation, RETRY_OPERATION_BUFFER)
+
 	counter = 0
 	for filePath = range filePathChan {
 		operation = &Operation{proc, counter, filePath}
 		counter++
 
+		worker = <-master.idleWorkerChan
+		wg.Add(1)
+		go master.runOperation(worker, operation, &wg)
+	}
+
+	wg.Wait()
+
+	//fecha o canal de retrial operacoes. Isso impede que o
+	//loop de retrial abaixo fique bloqueado esperando pelo canal
+	close(master.operationsToBeRetriedChan)
+
+	//tratamento das operacoes que nao foram concluidas
+	//por falha dos workers
+	for operation = range master.operationsToBeRetriedChan {
 		worker = <-master.idleWorkerChan
 		wg.Add(1)
 		go master.runOperation(worker, operation, &wg)
@@ -56,10 +73,12 @@ func (master *Master) runOperation(remoteWorker *RemoteWorker, operation *Operat
 
 	if err != nil {
 		log.Printf("Operation %v '%v' Failed. Error: %v\n", operation.proc, operation.id, err)
+		master.operationsToBeRetriedChan <- operation //manda a operacao para a fila de retrials
 		wg.Done()
 		master.failedWorkerChan <- remoteWorker
 	} else {
 		wg.Done()
 		master.idleWorkerChan <- remoteWorker
 	}
+
 }

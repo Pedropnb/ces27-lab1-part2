@@ -33,7 +33,7 @@ func (worker *Worker) RunMap(args *RunArgs, _ *struct{}) error {
 	return nil
 }
 
-// RPC - RunMap
+// RPC - RunReduce
 // Run the reduce operation defined in the task and return when it's done.
 func (worker *Worker) RunReduce(args *RunArgs, _ *struct{}) error {
 	log.Printf("Running reduce id: %v, path: %v\n", args.Id, args.FilePath)

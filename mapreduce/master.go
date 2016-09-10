@@ -33,6 +33,10 @@ type Master struct {
 	// ADD EXTRA PROPERTIES HERE //
 	///////////////////////////////
 	// Fault Tolerance
+	// O canal operationsToBeRetriedChan faz a comunicacao entre as goroutines
+	// para a repeticao das operacoes que foram atribuidas a workers que
+	// falharam.
+	operationsToBeRetriedChan chan *Operation
 }
 
 type Operation struct {
@@ -49,6 +53,7 @@ func newMaster(address string) (master *Master) {
 	master.idleWorkerChan = make(chan *RemoteWorker, IDLE_WORKER_BUFFER)
 	master.failedWorkerChan = make(chan *RemoteWorker, IDLE_WORKER_BUFFER)
 	master.totalWorkers = 0
+	//master.operationsToBeRetriedChan = make(chan *Operation, RETRY_OPERATION_BUFFER)
 	return
 }
 
@@ -80,6 +85,15 @@ func (master *Master) handleFailingWorkers() {
 	/////////////////////////
 	// YOUR CODE GOES HERE //
 	/////////////////////////
+
+	//percorre o canal de workers falhados e os retira da lista de workers
+	//usa o mutex para proteger o acesso a lista de workers
+	for trabalhadorFalhado := range master.failedWorkerChan {
+		master.workersMutex.Lock()
+		delete(master.workers, trabalhadorFalhado.id)
+		master.workersMutex.Unlock()
+	}
+
 }
 
 // Handle a single connection until it's done, then closes it.
